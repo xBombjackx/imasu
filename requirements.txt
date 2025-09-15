@@ -9,3 +9,6 @@ Pillow
 ollama==0.5.3
 langchain-cli
 streamlit
+pytest
+httpx
+langchain-ollama
