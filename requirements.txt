@@ -1,2 +1,11 @@
 requests==2.32.5
+fastapi
+uvicorn
+langchain
+langchain-community
+langchain-core
+pydantic
+Pillow
 ollama==0.5.3
+langchain-cli
+streamlit
