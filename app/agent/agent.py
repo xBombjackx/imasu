@@ -1,8 +1,8 @@
 from langchain.agents import AgentExecutor, create_react_agent
-from langchain_ollama import ChatOllama
 from langchain.memory import ConversationBufferMemory
+from langchain_community.chat_models import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from app.agent.tools import generate_image
 
 # 1. Initialize the LLM
