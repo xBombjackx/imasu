@@ -1,14 +1,11 @@
-requests==2.32.5
+# Core server and API
 fastapi
-uvicorn
+uvicorn[standard]
+
+# Agentic framework and LLM integration
 langchain
 langchain-community
-langchain-core
-pydantic
-Pillow
-ollama==0.5.3
-langchain-cli
-streamlit
-pytest
-httpx
-langchain-ollama
+ollama
+
+# For making API calls to A1111
+requests
