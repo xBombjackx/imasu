@@ -59,7 +59,9 @@ prompt = ChatPromptTemplate.from_messages(
 agent = create_react_agent(llm, tools, prompt)
 
 # 5. Create the Agent Executor
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
+agent_executor = AgentExecutor(
+    agent=agent, tools=tools, verbose=True, handle_parsing_errors=True
+)
 
 # 6. Create a memory object
 MEMORY = ConversationBufferMemory(memory_key="chat_history", return_messages=True)

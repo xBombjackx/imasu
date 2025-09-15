@@ -4,12 +4,10 @@ from app.agent.agent import agent_executor, MEMORY
 
 router = APIRouter()
 
+
 class GenerationRequest(BaseModel):
     prompt: str
 
-@router.get("/")
-def read_root():
-    return {"message": "Welcome to the Agentic API"}
 
 @router.post("/agent/generate")
 async def agent_generate(request: GenerationRequest):

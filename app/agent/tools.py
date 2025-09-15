@@ -4,6 +4,7 @@ import requests
 from langchain_core.tools import tool
 from app.core.config import A1111_URL, OUTPUT_DIR
 
+
 @tool
 def generate_image(prompt: str) -> str:
     """
