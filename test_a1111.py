@@ -33,7 +33,7 @@ try:
     # The API returns images as a list of Base64-encoded strings
     if "images" in r and len(r["images"]) > 0:
         # Get the first image from the list
-        image_data_base64 = r["images"]
+        image_data_base64 = r["images"][0]
 
         # Decode the Base64 string into bytes
         image_data = base64.b64decode(image_data_base64)
