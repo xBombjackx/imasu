@@ -1,58 +1,81 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.agent.agent import agent_executor, MEMORY
+from typing import Optional
 import traceback
+import json
+
+from app.agent.agent import agent_executor
+from app.agent.ideation import ideation_chain
 
 router = APIRouter()
 
 
+# --- Pydantic Models ---
 class GenerationRequest(BaseModel):
     prompt: str
 
 
 class AgentResponse(BaseModel):
     output: str
+    image_base64: Optional[str] = None
+    final_prompt: Optional[str] = None
 
 
-@router.post("/ping")
-async def ping():
-    """A simple endpoint to check if the API is running."""
-    return {"status": "ok"}
+# --- API Endpoints ---
+@router.get("/ping")
+def ping():
+    """A simple ping endpoint to check if the server is running."""
+    return {"status": "alive"}
 
 
-@router.post(
-    "/agent/generate",
-    # The 'response_model' is often a simpler way to declare the primary success response.
-    # Using 'responses' is great for documenting multiple possible outcomes (e.g., 200, 404, 500).
-    response_model=AgentResponse,
-    responses={
-        200: {
-            # 💡 CHANGE A: The key here must be "model", not "response".
-            "model": AgentResponse,
-            "description": "Successful response from the agent",
-        },
-        500: {"description": "Internal server error"},
-    },
-)
+@router.post("/agent/generate", response_model=AgentResponse)
 async def agent_generate(request: GenerationRequest):
-    """Receives a prompt and uses the agent to generate a response."""
+    """
+    Receives a prompt, invokes the agent, and generates an image.
+    The agent's output is expected to be a JSON string from the generate_image tool.
+    This endpoint parses the JSON and returns a structured response.
+    """
     try:
-        # Invoke the agent executor
-        response = await agent_executor.ainvoke(
-            {"input": request.prompt, "chat_history": MEMORY.buffer_as_messages}
+        # Invoke the agent. The agent's 'output' will be a JSON string from our tool.
+        agent_response = await agent_executor.ainvoke({"input": request.prompt})
+
+        # Extract the JSON string from the agent's output
+        agent_output_str = agent_response.get("output")
+        if not agent_output_str:
+            raise HTTPException(
+                status_code=500, detail="Agent failed to produce a valid output."
+            )
+
+        # Parse the JSON string to get the tool's results
+        tool_result = json.loads(agent_output_str)
+
+        # Construct a valid AgentResponse object for FastAPI to return to the UI
+        api_response = AgentResponse(
+            output=tool_result.get("final_prompt", "Image generated successfully."),
+            image_base64=tool_result.get("image_base64"),
+            final_prompt=tool_result.get("final_prompt"),
         )
-        # Update memory with the current interaction
-        MEMORY.save_context({"input": request.prompt}, {"output": response["output"]})
+        return api_response
 
-        result = response["output"]
-
-        # 💡 CHANGE B: Return a Pydantic model instance, not a dictionary.
-        return AgentResponse(output=result)
-
+    except json.JSONDecodeError:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail="Agent returned malformed data. Could not decode JSON from tool.",
+        )
     except Exception as e:
-        # It's good practice to log the error here
-        # import logging
-        # logging.error(f"Error in agent generation: {e}")
-        print(f"--- AN ERROR OCCURRED IN agent_generate ---")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/agent/variations")
+async def agent_variations(request: GenerationRequest):
+    """
+    Receives a simple prompt and generates a list of creative variations using the ideation agent.
+    """
+    try:
+        response = await ideation_chain.ainvoke({"user_idea": request.prompt})
+        return response
+    except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

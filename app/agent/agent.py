@@ -1,79 +1,37 @@
-# app/agent/agent.py
-
 from langchain_community.chat_models import ChatOllama
-from langchain.agents import AgentExecutor, create_json_chat_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.memory import ConversationBufferMemory
+from langchain_core.prompts import ChatPromptTemplate
+from langchain.agents import AgentExecutor, create_openai_functions_agent
+
+from app.core.settings import settings
 from .tools import generate_image
 
-# --- CORE AGENT SETUP ---
-
-# 1. Reasoning Engine (LLM)
-llm = ChatOllama(model="llama3.1:8b", temperature=0.7)
-
-# 2. Specialist Tools
+# --- 1. Define the Tools ---
 tools = [generate_image]
 
-# 3. Create a rigid, example-driven prompt to ensure correct JSON format.
+# --- 2. Create the LLM ---
+llm = ChatOllama(model=settings.OLLAMA_MODEL, temperature=0.7, format="json")
+
+# --- 3. Create the Prompt ---
+# This is the final key change. We are being extremely explicit in the prompt,
+# telling the LLM the exact name and argument ('prompt') of the tool it must use.
+# This eliminates any remaining ambiguity and prevents it from hallucinating
+# a complex, incorrect tool call.
 prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            """
-You are an AI assistant that creates a prompt for an image generator.
-Your response MUST be a single JSON blob containing "action" and "action_input" keys.
-The "action_input" itself must contain "prompt" and "negative_prompt" keys.
-
-You have access to the following tools: {tools}
-You must use this tool: {tool_names}
-
-- Based on the user's input, create a detailed, high-quality "prompt".
-- Create a "negative_prompt" with terms like "deformed, blurry, bad anatomy, low quality".
-- Do NOT add any text outside of the JSON blob.
-
-This is the required format:
-```json
-{{
-  "action": "generate_image",
-  "action_input": {{
-    "prompt": "A detailed, professional description of the image.",
-    "negative_prompt": "A list of terms to avoid."
-  }}
-}}
-```
-            """,
+            "You are a specialized assistant whose only purpose is to call the 'generate_image' tool. "
+            "The 'generate_image' tool takes a single string argument named 'prompt'. "
+            "Your sole output must be a JSON object that calls the 'generate_image' tool with this single 'prompt' argument.",
         ),
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{input}"),
-        MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ("user", "{input}"),
+        ("placeholder", "{agent_scratchpad}"),
     ]
 )
 
-# 4. Create the Agent
-agent = create_json_chat_agent(llm, tools, prompt)
-
-# 5. Create the Agent Executor with Memory
-MEMORY = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-
-agent_executor = AgentExecutor(
-    agent=agent,
-    tools=tools,
-    memory=MEMORY,
-    verbose=True,
-    handle_parsing_errors=True,
-    return_intermediate_steps=True,
-)
-
-# --- INVOCATION FUNCTION ---
+# --- 4. Create the Agent ---
+agent = create_openai_functions_agent(llm, tools, prompt)
 
 
-async def invoke_agent(prompt_text: str):
-    """
-    Asynchronously invokes the agent with a given prompt.
-    """
-    response = await agent_executor.ainvoke({"input": prompt_text})
-    if "output" in response and response["output"]:
-        return response["output"]
-    elif "intermediate_steps" in response and response["intermediate_steps"]:
-        return response["intermediate_steps"][0][1]
-    return "Agent did not produce a final output or tool call."
+# --- 5. Create the Agent Executor ---
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)

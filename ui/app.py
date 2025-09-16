@@ -1,99 +1,107 @@
 import streamlit as st
 import requests
-import os
+import base64
 from PIL import Image
-import sys
-
-# Add the root project directory to the Python path
-# This allows us to import from the 'app' module if ever needed,
-# though for this simple UI, we'll use API calls.
-# Note: When running with Docker, this becomes less critical.
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import io
+import textwrap
 
 # --- Configuration ---
-# This is the URL for your FastAPI backend.
-# If running locally, it's typically this.
-# If using Docker Compose, this would be 'http://orchestrator:8000/agent/generate'
-API_URL = "http://127.0.0.1:8000/agent/generate"
+API_BASE_URL = "http://localhost:8000"  # URL of your FastAPI backend
+st.set_page_config(layout="wide", page_title="AI Design Agent")
 
-# This should point to the output directory relative to the project root.
-# Your FastAPI app saves images in `app/final_outputs`.
-OUTPUT_DIR = "app/final_outputs"
 
-# --- Streamlit UI ---
-st.set_page_config(layout="wide")
-st.title("🎨 Agentic Artwork Generator")
-st.caption("A local, self-hosted agentic system.")
+# --- API Communication ---
+def get_prompt_variations(user_idea: str):
+    """Calls the backend to get a list of prompt variations."""
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/agent/variations", json={"prompt": user_idea}
+        )
+        response.raise_for_status()
+        return response.json().get("variations", [])
+    except requests.RequestException as e:
+        st.error(f"Error getting prompt variations: {e}")
+        return None
 
-# Initialize chat history in session state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    # Add a welcoming message
-    st.session_state.messages.append(
-        {
-            "role": "assistant",
-            "content": "Hello! What masterpiece can I create for you today?",
-        }
+
+def generate_image(prompt: str):
+    """Calls the backend to generate an image from a single prompt."""
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/agent/generate", json={"prompt": prompt}
+        )
+        response.raise_for_status()
+        # Expecting a JSON with 'image_base64' and 'final_prompt'
+        return response.json()
+    except requests.RequestException as e:
+        st.error(f"Error generating image: {e}")
+        return None
+
+
+# --- UI Layout ---
+st.title("🎨 AI Design Agent")
+st.markdown(
+    "Your collaborative partner for visual creation. Start with a simple idea, and the agent will brainstorm and generate multiple visual concepts for you to refine."
+)
+
+# Use session state to hold the results
+if "results" not in st.session_state:
+    st.session_state.results = []
+
+# --- Main Interaction ---
+with st.form("idea_form"):
+    user_idea = st.text_input(
+        "Enter a simple idea or concept:",
+        placeholder="e.g., A cat wearing a wizard hat",
+        key="user_idea_input",
     )
+    submitted = st.form_submit_button("✨ Generate Concepts")
 
-# Display prior chat messages
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-        # If an image path is stored with the message, display it
-        if "image_path" in message and message["image_path"]:
-            if os.path.exists(message["image_path"]):
-                st.image(message["image_path"])
-            else:
-                st.error(f"Could not find image at path: {message['image_path']}")
+if submitted and user_idea:
+    st.session_state.results = []  # Clear previous results
+    # 1. Get prompt variations from the "Creative Director" agent
+    with st.spinner(
+        "Step 1: The Creative Director is brainstorming prompt variations..."
+    ):
+        variations = get_prompt_variations(user_idea)
 
-# Accept user input
-if prompt := st.chat_input("e.g., 'Create a photorealistic cat wearing a wizard hat'"):
-    # Add user message to UI and history
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    if variations:
+        st.info(
+            f"Brainstorming complete! Generating {len(variations)} unique concepts..."
+        )
+        # 2. Generate an image for each variation
+        placeholders = {}
+        cols = st.columns(len(variations))
 
-    # Call the agent backend
-    with st.spinner("The agent is reasoning and creating..."):
-        try:
-            response = requests.post(API_URL, json={"prompt": prompt})
-            response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
+        for i, prompt_variation in enumerate(variations):
+            placeholders[i] = cols[i].empty()
+            with placeholders[i]:
+                with st.spinner(f"Concept {i+1}: The Artist is painting..."):
+                    result_data = generate_image(prompt_variation)
+                    if result_data and result_data.get("image_base64"):
+                        st.session_state.results.append(result_data)
 
-            agent_response = response.json().get("response", {})
-            output_text = agent_response.get(
-                "output", "Sorry, I couldn't generate a response."
-            )
-            image_filename = agent_response.get(
-                "image_filename"
-            )  # Get the filename from the API
+# --- Display Results Gallery ---
+if st.session_state.results:
+    st.markdown("---")
+    st.subheader("Generated Concepts")
 
-            # Display agent response and image
-            with st.chat_message("assistant"):
-                st.markdown(output_text)
-                image_full_path = None
-                if image_filename:
-                    # Construct the full path to the image
-                    image_full_path = os.path.join(OUTPUT_DIR, image_filename)
-                    if os.path.exists(image_full_path):
-                        st.image(image_full_path, caption="Generated by the Agent")
-                    else:
-                        st.error(
-                            f"Agent reported image '{image_filename}', but the file was not found in '{OUTPUT_DIR}'."
-                        )
+    num_results = len(st.session_state.results)
+    cols = st.columns(num_results)
 
-            # Add agent response to chat history, including the image path
-            st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": output_text,
-                    "image_path": image_full_path,
-                }
-            )
+    for i, result in enumerate(st.session_state.results):
+        with cols[i]:
+            image_b64 = result.get("image_base64")
+            final_prompt = result.get("final_prompt", "Prompt not available.")
 
-        except requests.exceptions.RequestException as e:
-            st.error(
-                f"Failed to connect to the agent backend at {API_URL}. Is it running? Error: {e}"
-            )
-        except Exception as e:
-            st.error(f"An unexpected error occurred: {e}")
+            try:
+                img_data = base64.b64decode(image_b64)
+                img = Image.open(io.BytesIO(img_data))
+                st.image(img, use_column_width=True)
+
+                # Use textwrap for cleaner prompt display
+                wrapped_prompt = textwrap.fill(final_prompt, width=40)
+                st.caption(f"**Prompt:** {wrapped_prompt}")
+
+            except Exception as e:
+                st.error(f"Could not display image {i+1}. Error: {e}")
