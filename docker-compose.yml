@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Your FastAPI + Streamlit Application
+  lovart_app:
+    build: .
+    ports:
+      - "8000:8000" # FastAPI API
+      - "8501:8501" # Streamlit UI
+    volumes:
+      - ./app:/app/app # Mount your app code for live-reloading
+      - ./ui:/app/ui # Mount your ui code for live-reloading
+      - ./output:/app/output # Mount the output directory to persist images
+    environment:
+      # This tells the app where to find A1111.
+      # 'host.docker.internal' is a special DNS name that points to your host machine.
+      A1111_URL: "http://192.168.1.123:7860"
+    depends_on:
+      - ollama
+    # This command makes the container wait for the Ollama service to be healthy
+    command: >
+      bash -c "
+        while ! curl -s http://ollama:11434 > /dev/null; do
+          echo 'Waiting for Ollama to be available...'
+          sleep 1;
+        done;
+        echo 'Ollama is up!';
+        exec /bin/bash -c 'uvicorn app.main:app --host 0.0.0.0 --port 8000 & streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0'
+      "
+
+  # The Ollama LLM Service
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  ollama_data: # This named volume persists the downloaded LLM models
