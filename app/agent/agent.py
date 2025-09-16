@@ -12,17 +12,18 @@ tools = [generate_image]
 llm = ChatOllama(model=settings.OLLAMA_MODEL, temperature=0.7, format="json")
 
 # --- 3. Create the Prompt ---
-# This is the final key change. We are being extremely explicit in the prompt,
-# telling the LLM the exact name and argument ('prompt') of the tool it must use.
-# This eliminates any remaining ambiguity and prevents it from hallucinating
-# a complex, incorrect tool call.
+# With the Pydantic model handling validation, we can simplify the prompt.
+# We no longer need to aggressively restrict the LLM. We can give it a more
+# natural instruction, and LangChain will automatically provide the tool's
+# schema (from the Pydantic model) to the LLM.
 prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a specialized assistant whose only purpose is to call the 'generate_image' tool. "
-            "The 'generate_image' tool takes a single string argument named 'prompt'. "
-            "Your sole output must be a JSON object that calls the 'generate_image' tool with this single 'prompt' argument.",
+            "You are an expert at generating images. "
+            "Use the user's request to call the `generate_image` tool. "
+            "If the user provides details like style, steps, or negative prompts, "
+            "include them in the tool call.",
         ),
         ("user", "{input}"),
         ("placeholder", "{agent_scratchpad}"),
