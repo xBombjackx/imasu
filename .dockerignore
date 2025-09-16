@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# VSCode
+.vscode
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+env/
+venv/
+pip-cache/
+
+# Docker
+Dockerfile
+docker-compose.yml
+
+# Output
+output/
+
+# README
+README.md
+GEMINI_CONTEXT.MD
+
+# Tests
+tests/

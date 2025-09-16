@@ -4,9 +4,13 @@ import base64
 from PIL import Image
 import io
 import textwrap
+import os
 
 # --- Configuration ---
-API_BASE_URL = "http://localhost:8000"  # URL of your FastAPI backend
+# Set the API URL from an environment variable, with a default for local development
+API_BASE_URL = os.getenv(
+    "API_BASE_URL", "http://localhost:8000"
+)  # URL of your FastAPI backend
 st.set_page_config(layout="wide", page_title="AI Design Agent")
 
 
