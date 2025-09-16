@@ -1,13 +1,15 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-import traceback
 import json
 
 from app.agent.agent import agent_executor
 from app.agent.ideation import ideation_chain
 
+# --- Router and Logger Setup ---
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # --- Pydantic Models ---
@@ -57,15 +59,17 @@ async def agent_generate(request: GenerationRequest):
         )
         return api_response
 
-    except json.JSONDecodeError:
-        traceback.print_exc()
+    except json.JSONDecodeError as e:
+        logger.exception(
+            "JSONDecodeError: Agent returned malformed data. Details: %s", e
+        )
         raise HTTPException(
             status_code=500,
-            detail="Agent returned malformed data. Could not decode JSON from tool.",
+            detail=f"Agent returned malformed data. Could not decode JSON from tool output: {agent_output_str}",
         )
     except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("An unexpected error occurred in /agent/generate: %s", e)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 
 @router.post("/agent/variations")
@@ -77,5 +81,5 @@ async def agent_variations(request: GenerationRequest):
         response = await ideation_chain.ainvoke({"user_idea": request.prompt})
         return response
     except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("An unexpected error occurred in /agent/variations: %s", e)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
