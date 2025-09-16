@@ -9,3 +9,13 @@ ollama==0.5.3
 
 # For making API calls to A1111
 requests==2.32.5
+
+# UI Framework
+streamlit==1.49.1
+
+# Image Processing
+Pillow==11.3.0
+
+# Data validation and settings
+pydantic==2.11.9
+pydantic-settings==2.10.1
