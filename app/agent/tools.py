@@ -1,67 +1,80 @@
+import requests
 import base64
 import os
-import requests
-import json  # <-- Add this import
-from langchain_core.tools import tool
-from app.core.config import A1111_URL, OUTPUT_DIR
+import json
+from langchain.tools import tool
+from pydantic import BaseModel, Field
 
 
-@tool
-def generate_image(prompt: str) -> str:
+# --- TOOL INPUT SCHEMA ---
+class ImageGenerationInput(BaseModel):
+    """Input model for the generate_image tool."""
+
+    prompt: str = Field(description="A detailed, professional prompt for the image.")
+    negative_prompt: str = Field(description="A list of things to avoid in the image.")
+
+
+# --- TOOL IMPLEMENTATION ---
+@tool(args_schema=ImageGenerationInput)
+def generate_image(prompt: str, negative_prompt: str) -> str:
     """
-    Use this tool to generate an image based on a detailed textual description.
-    This tool calls a local Stable Diffusion API to create the image.
-    The input should be a rich, descriptive prompt suitable for an image generation model.
-    Returns a JSON string containing the result message and the filename of the created image.
+    Generates a high-quality image using a local AUTOMATIC1111 Stable Diffusion
+    instance with professional settings and returns a confirmation message.
     """
-    print(f"--- Calling Image Generation Tool with prompt: '{prompt}' ---")
+    api_url = "http://127.0.0.1:7860/sdapi/v1/txt2img"
+    output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
 
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-
+    # 💡 CHANGE: Incorporating advanced settings for higher quality output.
     payload = {
         "prompt": prompt,
-        "negative_prompt": "blurry, ugly, deformed, watermark, text",
-        "steps": 28,
-        "width": 512,
-        "height": 512,
-        "cfg_scale": 7.0,
-        "sampler_name": "DPM++ 2M Karras",
+        "negative_prompt": negative_prompt,
+        "steps": 30,
+        "cfg_scale": 6,
+        "width": 896,  # Using a professional portrait aspect ratio
+        "height": 1152,
+        "sampler_name": "DPM++ 2M SDE Karras",  # Using a different high-quality sampler
+        "enable_hr": True,
+        "hr_scale": 1.5,
+        "hr_upscaler": "4xUltrasharp_4xUltrasharpV10",  # Make sure this upscaler is installed
+        "hr_second_pass_steps": 15,  # Specific steps for the hires pass
+        "denoising_strength": 0.33,  # Lower denoising for detail preservation
+        "override_settings": {
+            "sd_model_checkpoint": "juggernautXL_ragnarokBy.safetensors"
+        },
     }
 
+    print(f"--- Calling Image Generation Tool with payload: ---")
+    print(json.dumps(payload, indent=2))
+
     try:
-        response = requests.post(url=f"{A1111_URL}/sdapi/v1/txt2img", json=payload)
+        # Increased timeout to 10 minutes (600 seconds) to handle slower generation
+        response = requests.post(url=api_url, json=payload, timeout=600)
+
+        if response.status_code == 500:
+            error_details = response.text
+            print(f"--- A1111 SERVER ERROR ---")
+            print(error_details)
+            return f"A1111 server returned a 500 error. Check the A1111 console for details. Response: {error_details}"
+
         response.raise_for_status()
         r = response.json()
 
-        if "images" in r and len(r["images"]) > 0:
-            image_data = base64.b64decode(r["images"][0])
-            output_filename = f"img_{hash(prompt)}.png"
-            output_path = os.path.join(OUTPUT_DIR, output_filename)
+        if "images" in r and r["images"]:
+            image_data = r["images"][0]
+            image_filename = f"img_{hash(image_data)}.png"
+            output_path = os.path.join(output_dir, image_filename)
 
             with open(output_path, "wb") as f:
-                f.write(image_data)
+                f.write(base64.b64decode(image_data))
 
-            # --- MODIFICATION START ---
-            # Return a JSON string with both a message and the filename
-            result = {
-                "message": f"Image successfully generated and saved to {output_path}",
-                "image_filename": output_filename,
-            }
-            return json.dumps(result)
-            # --- MODIFICATION END ---
+            final_output = f"Image successfully generated and saved to {output_path}"
+            print(final_output)
+            return final_output
         else:
-            return json.dumps(
-                {
-                    "message": "Error: API response did not contain an image.",
-                    "image_filename": None,
-                }
-            )
+            return "A1111 API call succeeded but returned no image data."
 
-    except Exception as e:
-        print(f"Error calling AUTOMATIC1111 API: {e}")
-        return json.dumps(
-            {
-                "message": f"Error: Failed to generate image. Details: {str(e)}",
-                "image_filename": None,
-            }
-        )
+    except requests.exceptions.RequestException as e:
+        error_message = f"Failed to connect to A1111 API: {e}"
+        print(error_message)
+        return error_message

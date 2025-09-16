@@ -1,67 +1,79 @@
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.memory import ConversationBufferMemory
+# app/agent/agent.py
+
 from langchain_community.chat_models import ChatOllama
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from app.agent.tools import generate_image
+from langchain.agents import AgentExecutor, create_json_chat_agent
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.memory import ConversationBufferMemory
+from .tools import generate_image
 
-# 1. Initialize the LLM
-llm = ChatOllama(model="llama3.1:8b", temperature=0)
+# --- CORE AGENT SETUP ---
 
-# 2. Define the list of tools the agent can use
+# 1. Reasoning Engine (LLM)
+llm = ChatOllama(model="llama3.1:8b", temperature=0.7)
+
+# 2. Specialist Tools
 tools = [generate_image]
 
-# 3. Create the Agent Prompt Template
-# We are adapting the original custom prompt to work with the ReAct agent.
-# The key is to ensure the prompt template can accept 'tools' and 'tool_names'
-# and that the system message includes instructions on how to use them.
-# The `render_text_description` function (default in create_react_agent)
-# will format the tools list into a string that fills the {tools} placeholder.
-
-system_prompt_template = """
-You are a creative assistant who helps users generate images.
-If the user's request is ambiguous, ask for clarification.
-When you generate an image, enhance the user's prompt to be more descriptive and artistic for the image model.
-Always confirm when an image has been successfully created.
-
-You have access to the following tools:
-
-{tools}
-
-To use a tool, please use the following format:
-
-```
-Thought: Do I need to use a tool? Yes
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-```
-
-When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
-
-```
-Thought: Do I need to use a tool? No
-Final Answer: [your response here]
-```
-"""
-
+# 3. Create a rigid, example-driven prompt to ensure correct JSON format.
 prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", system_prompt_template),
-        ("placeholder", "{chat_history}"),
+        (
+            "system",
+            """
+You are an AI assistant that creates a prompt for an image generator.
+Your response MUST be a single JSON blob containing "action" and "action_input" keys.
+The "action_input" itself must contain "prompt" and "negative_prompt" keys.
+
+You have access to the following tools: {tools}
+You must use this tool: {tool_names}
+
+- Based on the user's input, create a detailed, high-quality "prompt".
+- Create a "negative_prompt" with terms like "deformed, blurry, bad anatomy, low quality".
+- Do NOT add any text outside of the JSON blob.
+
+This is the required format:
+```json
+{{
+  "action": "generate_image",
+  "action_input": {{
+    "prompt": "A detailed, professional description of the image.",
+    "negative_prompt": "A list of terms to avoid."
+  }}
+}}
+```
+            """,
+        ),
+        MessagesPlaceholder(variable_name="chat_history"),
         ("human", "{input}"),
-        ("placeholder", "{agent_scratchpad}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
     ]
 )
 
-
 # 4. Create the Agent
-agent = create_react_agent(llm, tools, prompt)
+agent = create_json_chat_agent(llm, tools, prompt)
 
-# 5. Create the Agent Executor
+# 5. Create the Agent Executor with Memory
+MEMORY = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
 agent_executor = AgentExecutor(
-    agent=agent, tools=tools, verbose=True, handle_parsing_errors=True
+    agent=agent,
+    tools=tools,
+    memory=MEMORY,
+    verbose=True,
+    handle_parsing_errors=True,
+    return_intermediate_steps=True,
 )
 
-# 6. Create a memory object
-MEMORY = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+# --- INVOCATION FUNCTION ---
+
+
+async def invoke_agent(prompt_text: str):
+    """
+    Asynchronously invokes the agent with a given prompt.
+    """
+    response = await agent_executor.ainvoke({"input": prompt_text})
+    if "output" in response and response["output"]:
+        return response["output"]
+    elif "intermediate_steps" in response and response["intermediate_steps"]:
+        return response["intermediate_steps"][0][1]
+    return "Agent did not produce a final output or tool call."
