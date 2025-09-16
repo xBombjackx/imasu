@@ -1,11 +1,11 @@
 # Core server and API
-fastapi
-uvicorn[standard]
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
 
 # Agentic framework and LLM integration
-langchain
-langchain-community
-ollama
+langchain==0.3.27
+langchain-community==0.3.29
+ollama==0.5.3
 
 # For making API calls to A1111
-requests
+requests==2.32.5
