@@ -1,21 +1,21 @@
-# Use an official Python runtime as a parent image
+# API Dockerfile
 FROM python:3.11-slim
 
-# Install curl for health checks
-RUN apt-get update && apt-get install -y curl
+# Install system dependencies
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory in the container
+# Set working directory
 WORKDIR /app
 
-# Copy and install dependencies first to leverage Docker cache
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies first (caches layer)
+COPY requirements-api.txt .
+RUN pip install --no-cache-dir -r requirements-api.txt
 
-# Copy the application code
+# Copy app code
 COPY ./app ./app
 
-# Expose the port the app runs on
+# Expose API port
 EXPOSE 8000
 
-# Run the FastAPI server
+# Start FastAPI with uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

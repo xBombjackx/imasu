@@ -14,28 +14,37 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Lovart AI Agent",
     description="Orchestrator for the AI Design Agent, connecting Streamlit UI, Ollama, and A1111.",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Include the API router
 app.include_router(api_router)
+
 
 @app.on_event("startup")
 async def startup_event():
     """Log application startup"""
     logger.info("Lovart AI application starting up...")
 
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Log application shutdown"""
     logger.info("Lovart AI application shutting down...")
+
 
 @app.get("/", tags=["Root"])
 def read_root():
     """A simple root endpoint to confirm the API is running."""
     return {"status": "Lovart AI API is running."}
 
+
 @app.get("/ping", tags=["Health Check"])
 def ping():
     """A simple ping endpoint to confirm the API is running."""
+    return {"status": "ok"}
+
+
+@app.get("/health")
+def health_check():
     return {"status": "ok"}

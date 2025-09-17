@@ -7,10 +7,7 @@ import textwrap
 import os
 
 # --- Configuration ---
-# Set the API URL from an environment variable, with a default for local development
-API_BASE_URL = os.getenv(
-    "API_BASE_URL", "http://localhost:8000"
-)  # URL of your FastAPI backend
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 st.set_page_config(layout="wide", page_title="AI Design Agent")
 
 
@@ -25,7 +22,7 @@ def get_prompt_variations(user_idea: str):
         return response.json().get("variations", [])
     except requests.RequestException as e:
         st.error(f"Error getting prompt variations: {e}")
-        return None
+        return []
 
 
 def generate_image(prompt: str):
@@ -35,7 +32,6 @@ def generate_image(prompt: str):
             f"{API_BASE_URL}/agent/generate", json={"prompt": prompt}
         )
         response.raise_for_status()
-        # Expecting a JSON with 'image_base64' and 'final_prompt'
         return response.json()
     except requests.RequestException as e:
         st.error(f"Error generating image: {e}")
@@ -45,10 +41,11 @@ def generate_image(prompt: str):
 # --- UI Layout ---
 st.title("🎨 AI Design Agent")
 st.markdown(
-    "Your collaborative partner for visual creation. Start with a simple idea, and the agent will brainstorm and generate multiple visual concepts for you to refine."
+    "Your collaborative partner for visual creation. Start with a simple idea, "
+    "and the agent will brainstorm and generate multiple visual concepts for you to refine."
 )
 
-# Use session state to hold the results
+# Session state for storing results
 if "results" not in st.session_state:
     st.session_state.results = []
 
@@ -63,49 +60,58 @@ with st.form("idea_form"):
 
 if submitted and user_idea:
     st.session_state.results = []  # Clear previous results
-    # 1. Get prompt variations from the "Creative Director" agent
-    with st.spinner(
-        "Step 1: The Creative Director is brainstorming prompt variations..."
-    ):
+
+    # Step 1: Get prompt variations
+    with st.spinner("Step 1: Brainstorming prompt variations..."):
         variations = get_prompt_variations(user_idea)
 
-    if variations:
-        st.info(
-            f"Brainstorming complete! Generating {len(variations)} unique concepts..."
-        )
-        # 2. Generate an image for each variation
-        placeholders = {}
-        cols = st.columns(len(variations))
+    if not variations:
+        st.warning("No variations received from the backend.")
+    else:
+        st.info(f"Generating {len(variations)} unique concepts...")
 
-        for i, prompt_variation in enumerate(variations):
-            placeholders[i] = cols[i].empty()
-            with placeholders[i]:
-                with st.spinner(f"Concept {i+1}: The Artist is painting..."):
-                    result_data = generate_image(prompt_variation)
-                    if result_data and result_data.get("image_base64"):
-                        st.session_state.results.append(result_data)
+        # Step 2: Generate images with live display
+        max_cols = 3
+        total_variations = len(variations)
+        progress_bar = st.progress(0)
+        generated_count = 0
 
-# --- Display Results Gallery ---
-if st.session_state.results:
-    st.markdown("---")
-    st.subheader("Generated Concepts")
+        # Placeholder container for results
+        results_container = st.container()
 
-    num_results = len(st.session_state.results)
-    cols = st.columns(num_results)
+        for i in range(0, total_variations, max_cols):
+            chunk = variations[i : i + max_cols]
+            cols = results_container.columns(len(chunk))
 
-    for i, result in enumerate(st.session_state.results):
-        with cols[i]:
-            image_b64 = result.get("image_base64")
-            final_prompt = result.get("final_prompt", "Prompt not available.")
+            for j, prompt_variation in enumerate(chunk):
+                with cols[j]:
+                    placeholder = st.empty()  # Individual placeholder for live update
+                    with st.spinner(f"Concept {i+j+1}: Generating..."):
+                        result_data = generate_image(prompt_variation)
+                        if result_data and result_data.get("image_base64"):
+                            st.session_state.results.append(result_data)
 
-            try:
-                img_data = base64.b64decode(image_b64)
-                img = Image.open(io.BytesIO(img_data))
-                st.image(img, use_column_width=True)
+                            # Decode and display image immediately
+                            try:
+                                img_data = base64.b64decode(result_data["image_base64"])
+                                img = Image.open(io.BytesIO(img_data))
+                                placeholder.image(img, use_container_width=True)
+                                wrapped_prompt = textwrap.fill(
+                                    result_data.get(
+                                        "final_prompt", "Prompt not available."
+                                    ),
+                                    width=40,
+                                )
+                                placeholder.caption(f"**Prompt:** {wrapped_prompt}")
+                            except Exception as e:
+                                placeholder.error(
+                                    f"Could not display image. Error: {e}"
+                                )
+                        else:
+                            placeholder.warning(
+                                f"Concept {i+j+1} could not be generated."
+                            )
 
-                # Use textwrap for cleaner prompt display
-                wrapped_prompt = textwrap.fill(final_prompt, width=40)
-                st.caption(f"**Prompt:** {wrapped_prompt}")
-
-            except Exception as e:
-                st.error(f"Could not display image {i+1}. Error: {e}")
+                        # Update progress bar
+                        generated_count += 1
+                        progress_bar.progress(generated_count / total_variations)
