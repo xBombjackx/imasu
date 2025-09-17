@@ -6,20 +6,21 @@ import io
 import textwrap
 import os
 
-# Change the API_URL to use the container's service name
-API_URL = "http://imasu_lovart_app:8000/agent/variations"
-
-st.title("Lovart.ai PoC 🎨")
-st.write(
-    "Enter an idea for an AI-generated artwork and get back a series of creative prompts."
-)
+# --- Configuration ---
+# Set the API URL from an environment variable, with a default for local development
+API_BASE_URL = os.getenv(
+    "API_BASE_URL", "http://localhost:8000"
+)  # URL of your FastAPI backend
+st.set_page_config(layout="wide", page_title="AI Design Agent")
 
 
 # --- API Communication ---
 def get_prompt_variations(user_idea: str):
     """Calls the backend to get a list of prompt variations."""
     try:
-        response = requests.post(API_URL, json={"prompt": user_idea}, timeout=300)
+        response = requests.post(
+            f"{API_BASE_URL}/agent/variations", json={"prompt": user_idea}
+        )
         response.raise_for_status()
         return response.json().get("variations", [])
     except requests.RequestException as e:
@@ -30,7 +31,9 @@ def get_prompt_variations(user_idea: str):
 def generate_image(prompt: str):
     """Calls the backend to generate an image from a single prompt."""
     try:
-        response = requests.post(f"{API_URL}/agent/generate", json={"prompt": prompt})
+        response = requests.post(
+            f"{API_BASE_URL}/agent/generate", json={"prompt": prompt}
+        )
         response.raise_for_status()
         # Expecting a JSON with 'image_base64' and 'final_prompt'
         return response.json()
