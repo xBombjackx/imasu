@@ -11,7 +11,7 @@ services:
     depends_on:
       - ollama
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/ping"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,6 +26,7 @@ services:
       - API_BASE_URL=http://api:8000
     depends_on:
       - api
+    command: streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0
   ollama:
     image: ollama/ollama
     ports:
