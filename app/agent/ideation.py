@@ -14,7 +14,12 @@ class PromptVariations(BaseModel):
 
 
 # --- Initialize the LLM ---
-llm = ChatOllama(model=settings.OLLAMA_MODEL, temperature=0.9, format="json")
+llm = ChatOllama(
+    model=settings.OLLAMA_MODEL,
+    temperature=0.9,
+    format="json",
+    base_url=settings.OLLAMA_URL,
+)
 
 # --- Create the Output Parser ---
 parser = JsonOutputParser(pydantic_object=PromptVariations)

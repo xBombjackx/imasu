@@ -1,3 +1,4 @@
+# app/core/settings.py
 from pydantic_settings import BaseSettings
 import os
 
@@ -11,6 +12,9 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.1:8b"
     # Directory to save the generated images
     OUTPUT_DIR: str = "output"
+
+    # Corrected Ollama URL
+    OLLAMA_URL: str = "http://imasu_ollama:11434"
 
     # --- FAST MODE CONFIGURATION ---
     # Set to True to generate multiple low-quality images for faster testing.

@@ -1,30 +1,20 @@
+# docker-compose.yml
 version: '3.8'
 
 services:
-  # Your FastAPI + Streamlit Application
   lovart_app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: imasu_lovart_app
+    # Remove or comment out this line:
+    # command: "uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
-      - "8501:8501"
-    env_file:
-      - .env
-    # The command below is a placeholder to keep the container running for development/debugging.
-    # It prevents the container from starting correctly in some environments.
-    # command: bash -c "while true; do sleep 1; done" 
-
-    # This is the correct command to run both the Streamlit UI and the FastAPI backend.
-    command: bash -c "streamlit run ui/app.py --server.port 8501 & uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    networks:
+      - agent-network
+    volumes:
+      - ./output:/app/output
+      - ./app:/app/app
     depends_on:
       - ollama
-
-  # The Ollama LLM Service
-  ollama:
-    image: ollama/ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-
-volumes:
-  ollama_data: # This named volume persists the downloaded LLM models

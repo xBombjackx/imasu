@@ -1,3 +1,4 @@
+# app/agent/agent.py
 from langchain_community.chat_models import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.agents import AgentExecutor, create_openai_functions_agent
@@ -9,13 +10,13 @@ from .tools import generate_image
 tools = [generate_image]
 
 # --- 2. Create the LLM ---
-llm = ChatOllama(model=settings.OLLAMA_MODEL, temperature=0.7, format="json")
-
+llm = ChatOllama(
+    model=settings.OLLAMA_MODEL,
+    temperature=0.7,
+    format="json",
+    base_url=settings.OLLAMA_URL,  # <-- ADD THIS PARAMETER
+)
 # --- 3. Create the Prompt ---
-# This is the final key change. We are being extremely explicit in the prompt,
-# telling the LLM the exact name and argument ('prompt') of the tool it must use.
-# This eliminates any remaining ambiguity and prevents it from hallucinating
-# a complex, incorrect tool call.
 prompt = ChatPromptTemplate.from_messages(
     [
         (
