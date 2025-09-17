@@ -6,18 +6,17 @@ This project is a self-hosted, agentic system for AI image generation. It uses a
 
 The system is composed of three main services that communicate with each other:
 
-1.  **`lovart_app` (Docker Service)**: The core application container that runs both the backend and the frontend.
-    -   **FastAPI Backend**: An orchestrator that hosts the LangChain agent, receives requests from the UI, and coordinates with other services.
-    -   **Streamlit Frontend**: The interactive web user interface where you enter prompts and view generated images.
-2.  **`ollama` (Docker Service)**: The reasoning engine. This service runs a local Large Language Model (LLM) like Llama 3.1, which understands user intent, brainstorms ideas, and plans the steps for image generation.
-3.  **AUTOMATIC1111 (Host Service)**: The specialist tool for image generation. It runs directly on your host machine to leverage GPU acceleration and exposes a REST API that the FastAPI backend calls.
+1.  **`api` (Docker Service)**: The backend orchestrator that hosts the LangChain agent, receives requests from the UI, and coordinates with other services.
+2.  **`ui` (Docker Service)**: The interactive web user interface where you enter prompts and view generated images.
+3.  **`ollama` (Docker Service)**: The reasoning engine. This service runs a local Large Language Model (LLM) like Llama 3.1, which understands user intent, brainstorms ideas, and plans the steps for image generation.
+4.  **AUTOMATIC1111 (Host Service)**: The specialist tool for image generation. It runs directly on your host machine to leverage GPU acceleration and exposes a REST API that the FastAPI backend calls.
 
 ```
 ┌───────────────────────────┐      ┌───────────────────────────┐
 │      Your Computer        │      │      Docker Network       │
 │  (Host Machine with GPU)  │      │                           │
 │                           │      │   ┌───────────────────┐   │
-│ ┌───────────────────────┐ │      │   │    lovart_app     │   │
+│ ┌───────────────────────┐ │      │   │        api        │   │
 │ │     AUTOMATIC1111     │ │      │   │-------------------│   │
 │ │ (Image Gen Service)   │ │◄─────┼───│  FastAPI Backend  │   │
 │ │    (localhost:7860)   │ │      │   │(Orchestrator)     │   │
@@ -26,7 +25,7 @@ The system is composed of three main services that communicate with each other:
 └───────────────────────────┘      │             │             │
        ▲                         │             ▼             │
        │                         │   ┌───────────────────┐   │
-       │                         │   │ Streamlit Frontend│   │
+       │                         │   │         ui        │   │
        │                         │   │      (UI)         │   │
        │                         │   └───────────────────┘   │
        │                         │             ▲             │
@@ -75,12 +74,12 @@ The A1111 Web UI must run directly on your host machine to ensure it has full ac
 With A1111 running and the `.env` file configured, launch the application stack:
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 This command will:
 
--   Build the `lovart_app` Docker image using the `Dockerfile`.
+-   Build the `api` and `ui` Docker images using the `Dockerfile` and `Dockerfile.ui` respectively.
 -   Pull the official `ollama/ollama` image.
 -   Start the containers in the correct order.
 -   The first time you run this, Ollama will download the default LLM model (`llama3.1:8b`), which may take a few minutes.
@@ -91,10 +90,10 @@ The application is now running!
 
 -   **Streamlit Web UI**: Open your browser and navigate to **http://localhost:8501**. This is the main interface for generating images.
 -   **FastAPI Documentation**: To see the API documentation, navigate to **http://localhost:8000/docs**.
--   **Application Logs**: View the combined logs for the FastAPI backend and Streamlit UI by running `docker-compose logs -f lovart_app`.
+-   **Application Logs**: View the logs for the API and UI services by running `docker compose logs -f api` and `docker compose logs -f ui`.
 
 ## 🛑 Stopping the Application
 
--   To stop all running services, press `Ctrl + C` in the terminal where `docker-compose` is running.
--   To remove the containers and network, run: `docker-compose down`.
+-   To stop all running services, press `Ctrl + C` in the terminal where `docker compose` is running.
+-   To remove the containers and network, run: `docker compose down`.
 -   Remember to also shut down the AUTOMATIC1111 service running on your host.

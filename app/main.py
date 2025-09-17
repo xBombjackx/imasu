@@ -34,3 +34,8 @@ async def shutdown_event():
 def read_root():
     """A simple root endpoint to confirm the API is running."""
     return {"status": "Lovart AI API is running."}
+
+@app.get("/ping", tags=["Health Check"])
+def ping():
+    """A simple ping endpoint to confirm the API is running."""
+    return {"status": "ok"}

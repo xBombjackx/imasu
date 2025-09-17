@@ -1,44 +1,36 @@
 version: '3.8'
-
 services:
-  lovart_app:
+  api:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-      - "8501:8501"
     env_file:
       - .env
-    environment:
-      # This ensures the Streamlit UI can find the FastAPI backend within the Docker network.
-      - API_BASE_URL=http://lovart_app:8000
     depends_on:
-      ollama:
-        condition: service_started
+      - ollama
     healthcheck:
-      # The health check pings the FastAPI's /ping endpoint to ensure the server is responsive.
       test: ["CMD", "curl", "-f", "http://localhost:8000/ping"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://api:8000
+    depends_on:
+      - api
   ollama:
     image: ollama/ollama
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    # GPU support for Ollama (optional, uncomment if you have an NVIDIA GPU)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-
 volumes:
   ollama_data:
-    # This named volume persists the downloaded LLM models across container restarts.
