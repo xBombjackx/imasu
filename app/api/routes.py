@@ -23,9 +23,8 @@ class AgentGenerateRequest(BaseModel):
 
 
 class AgentGenerateResponse(BaseModel):
-    image_base64: str  # Rename 'image' to 'image_base64' to match the UI's expectation
-    final_prompt: str  # Add the final prompt
-    saved_path: str  # Add the path where the image was saved
+    image_base64: str
+    final_prompt: str
 
 
 class VariationsResponse(BaseModel):
@@ -46,14 +45,16 @@ async def agent_generate(request: AgentGenerateRequest):
     """
     try:
         logger.info(f"Agent received prompt for generation: {request.prompt}")
-        # The agent executor is now expected to return a JSON string from the tool
-        agent_response_str = await agent_executor.ainvoke({"input": request.prompt})
+        agent_response = await agent_executor.ainvoke({"input": request.prompt})
 
-        # The tool returns a JSON string, which is the output of the agent
-        output_str = agent_response_str.get("output", "{}")
+        # Extract the JSON string from the agent's output
+        output_str = agent_response.get("output", "{}")
+
+        # Parse the JSON string from the tool's output
         tool_output = json.loads(output_str)
 
         image_base64 = tool_output.get("image_base64")
+        final_prompt = tool_output.get("final_prompt")
 
         if not image_base64:
             error_detail = tool_output.get(
@@ -63,9 +64,7 @@ async def agent_generate(request: AgentGenerateRequest):
 
         logger.info("Agent successfully generated image.")
         return AgentGenerateResponse(
-            image_base64=tool_output.get("image_base64"),
-            final_prompt=tool_output.get("final_prompt"),
-            saved_path=tool_output.get("saved_path"),
+            image_base64=image_base64, final_prompt=final_prompt
         )
 
     except json.JSONDecodeError as e:
@@ -87,7 +86,6 @@ async def agent_variations(request: GenerationRequest):
     Receives a simple prompt and generates a list of creative variations using the ideation agent.
     """
     try:
-        # The ideation chain already returns a dictionary thanks to the JsonOutputParser
         response_dict = await ideation_chain.ainvoke({"user_idea": request.prompt})
         return VariationsResponse(variations=response_dict.get("variations", []))
     except Exception as e:
