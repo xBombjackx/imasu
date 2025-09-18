@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import json
 import base64
+import re
 
 from app.agent.agent import agent_executor
 from app.agent.ideation import ideation_chain
@@ -31,6 +32,21 @@ class VariationsResponse(BaseModel):
     variations: List[str]
 
 
+# --- Helper Functions ---
+def extract_json_from_string(text: str) -> Optional[dict]:
+    """
+    Finds and parses the first valid JSON object within a string.
+    """
+    # This regex finds a JSON object by looking for the outermost curly braces
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
 # --- API Endpoints ---
 @router.get("/ping")
 def ping():
@@ -47,11 +63,14 @@ async def agent_generate(request: AgentGenerateRequest):
         logger.info(f"Agent received prompt for generation: {request.prompt}")
         agent_response = await agent_executor.ainvoke({"input": request.prompt})
 
-        # Extract the JSON string from the agent's output
-        output_str = agent_response.get("output", "{}")
+        output_str = agent_response.get("output", "")
+        tool_output = extract_json_from_string(output_str)
 
-        # Parse the JSON string from the tool's output
-        tool_output = json.loads(output_str)
+        if not tool_output:
+            logger.error(f"Could not extract JSON from agent output: {output_str}")
+            raise HTTPException(
+                status_code=500, detail="Agent returned malformed data."
+            )
 
         image_base64 = tool_output.get("image_base64")
         final_prompt = tool_output.get("final_prompt")
@@ -67,14 +86,6 @@ async def agent_generate(request: AgentGenerateRequest):
             image_base64=image_base64, final_prompt=final_prompt
         )
 
-    except json.JSONDecodeError as e:
-        logger.error(
-            f"JSONDecodeError in /agent/generate: {e}. Raw output: {output_str}"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Agent returned malformed data that could not be parsed as JSON.",
-        )
     except Exception as e:
         logger.error(f"An unexpected error occurred in /agent/generate: {e}")
         raise HTTPException(status_code=500, detail=str(e))

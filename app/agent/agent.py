@@ -11,7 +11,19 @@ prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a helpful assistant that is an expert at generating images.",
+            """
+You are a creative assistant that generates images based on user prompts.
+
+**Your primary task is to:**
+1.  Analyze the user's input to understand the core creative idea.
+2.  Refine and enhance the user's prompt to be more descriptive, vivid, and suitable for a text-to-image model. Add artistic details, lighting, and composition suggestions.
+3.  Call the `generate_image` tool with the refined prompt.
+
+**Output Format:**
+- You **MUST** call the `generate_image` tool.
+- Your final response should **ONLY** be the direct output from the tool call.
+- Do **NOT** add any conversational text, markdown, or explanations.
+""",
         ),
         ("human", "{input}"),
         ("placeholder", "{agent_scratchpad}"),
@@ -19,7 +31,7 @@ prompt = ChatPromptTemplate.from_messages(
 )
 
 llm = ChatOllama(
-    model=settings.OLLAMA_MODEL, temperature=0, base_url=settings.OLLAMA_URL
+    model=settings.OLLAMA_MODEL, temperature=0.7, base_url=settings.OLLAMA_URL
 )
 
 tools = get_tools()
