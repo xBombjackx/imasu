@@ -67,10 +67,10 @@ def generate_image(
 
     # --- Set Image Quality Defaults based on FAST_MODE ---
     if settings.FAST_MODE:
-        default_steps = 10
+        default_steps = 1
         default_sampler = "Euler"
-        default_width = 512
-        default_height = 512
+        default_width = 256
+        default_height = 256
     else:
         default_steps = 25
         default_sampler = "DPM++ 2M Karras"
