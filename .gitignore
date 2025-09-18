@@ -119,3 +119,6 @@ dmypy.json
 
 #Generated images
 generated_images/
+
+# Application output
+/output/

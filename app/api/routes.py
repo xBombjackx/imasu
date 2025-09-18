@@ -23,7 +23,9 @@ class AgentGenerateRequest(BaseModel):
 
 
 class AgentGenerateResponse(BaseModel):
-    image: str  # This will hold the base64 encoded image string
+    image_base64: str  # Rename 'image' to 'image_base64' to match the UI's expectation
+    final_prompt: str  # Add the final prompt
+    saved_path: str  # Add the path where the image was saved
 
 
 class VariationsResponse(BaseModel):
@@ -60,7 +62,11 @@ async def agent_generate(request: AgentGenerateRequest):
             raise HTTPException(status_code=500, detail=error_detail)
 
         logger.info("Agent successfully generated image.")
-        return AgentGenerateResponse(image=image_base64)
+        return AgentGenerateResponse(
+            image_base64=tool_output.get("image_base64"),
+            final_prompt=tool_output.get("final_prompt"),
+            saved_path=tool_output.get("saved_path"),
+        )
 
     except json.JSONDecodeError as e:
         logger.error(
