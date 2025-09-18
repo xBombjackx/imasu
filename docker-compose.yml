@@ -32,20 +32,20 @@ services:
       retries: 3
 
   ui:
-  build:
-    context: .
-    dockerfile: ./Dockerfile.ui
-  ports:
-    - "8501:8501"
-  depends_on:
-    - api
-  networks:
-    - imasu_network
-  healthcheck:
-    test: [ "CMD", "curl", "-f", "http://localhost:8501/health" ]
-    interval: 30s
-    timeout: 5s
-    retries: 3
+    build:
+      context: .
+      dockerfile: ./Dockerfile.ui
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    networks:
+      - imasu_network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8501/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
   imasu_network:
