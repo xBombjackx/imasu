@@ -1,0 +1,11 @@
+# Use the official Ollama image as the base
+FROM ollama/ollama:latest
+
+# Copy our startup script into the image
+COPY init-ollama.sh /init-ollama.sh
+
+# Make the script executable
+RUN chmod +x /init-ollama.sh
+
+# Set the script as the command to run when the container starts
+ENTRYPOINT ["/init-ollama.sh"]

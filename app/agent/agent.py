@@ -1,38 +1,29 @@
-from langchain_community.chat_models import ChatOllama
+# app/agent/agent.py
+
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
-from langchain.agents import AgentExecutor, create_openai_functions_agent
-
+from app.agent.tools import get_tools
 from app.core.settings import settings
-from .tools import generate_image
 
-# --- 1. Define the Tools ---
-tools = [generate_image]
-
-# --- 2. Create the LLM ---
-llm = ChatOllama(model=settings.OLLAMA_MODEL, temperature=0.7, format="json")
-
-# --- 3. Create the Prompt ---
-# With the Pydantic model handling validation, we can simplify the prompt.
-# We no longer need to aggressively restrict the LLM. We can give it a more
-# natural instruction, and LangChain will automatically provide the tool's
-# schema (from the Pydantic model) to the LLM.
+# A more robust prompt that tells the LLM how to behave
 prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are an expert at generating images. "
-            "Use the user's request to call the `generate_image` tool. "
-            "If the user provides details like style, steps, or negative prompts, "
-            "include them in the tool call.",
+            "You are a helpful assistant that is an expert at generating images.",
         ),
-        ("user", "{input}"),
+        ("human", "{input}"),
         ("placeholder", "{agent_scratchpad}"),
     ]
 )
 
-# --- 4. Create the Agent ---
-agent = create_openai_functions_agent(llm, tools, prompt)
+llm = ChatOllama(
+    model=settings.OLLAMA_MODEL, temperature=0, base_url=settings.OLLAMA_URL
+)
 
+tools = get_tools()
 
-# --- 5. Create the Agent Executor ---
+agent = create_tool_calling_agent(llm, tools, prompt)
+
 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)

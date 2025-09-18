@@ -1,9 +1,11 @@
-# requirements-api.txt
-
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
 httpx==0.27.0
 pydantic==2.9.2
 pydantic-settings==2.4.0
+
+# --- LangChain Packages ---
+# Using the main package for the agent framework
 langchain==0.2.11
-langchain-community==0.2.10
+# Using the new, dedicated package for Ollama integration
+langchain-ollama==0.3.8

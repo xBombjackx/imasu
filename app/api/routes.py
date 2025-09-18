@@ -30,34 +30,34 @@ def ping():
     return {"status": "alive"}
 
 
-@router.post("/agent/generate", response_model=AgentResponse)
-async def agent_generate(request: GenerationRequest):
+@router.post("/agent/generate", response_model=AgentGenerateResponse)
+async def agent_generate(request: AgentGenerateRequest):
     """
-    Receives a prompt, invokes the agent, and generates an image.
-    The agent's output is expected to be a JSON string from the generate_image tool.
-    This endpoint parses the JSON and returns a structured response.
+    Generate an image using the agentic executor.
     """
     try:
-        # Invoke the agent. The agent's 'output' will be a JSON string from our tool.
+        logger.info(f"Agent received prompt for generation: {request.prompt}")
         agent_response = await agent_executor.ainvoke({"input": request.prompt})
 
-        # Extract the JSON string from the agent's output
-        agent_output_str = agent_response.get("output")
-        if not agent_output_str:
+        # The new agent directly returns the tool's output!
+        image_path = agent_response.get("output", "")
+        if not image_path or not isinstance(image_path, str):
             raise HTTPException(
-                status_code=500, detail="Agent failed to produce a valid output."
+                status_code=500, detail="Agent did not return a valid image path."
             )
 
-        # Parse the JSON string to get the tool's results
-        tool_result = json.loads(agent_output_str)
+        logger.info(f"Agent generated image path: {image_path}")
 
-        # Construct a valid AgentResponse object for FastAPI to return to the UI
-        api_response = AgentResponse(
-            output=tool_result.get("final_prompt", "Image generated successfully."),
-            image_base64=tool_result.get("image_base64"),
-            final_prompt=tool_result.get("final_prompt"),
-        )
-        return api_response
+        with open(image_path, "rb") as f:
+            image_data = f.read()
+        image_base64 = base64.b64encode(image_data).decode("utf-8")
+
+        return AgentGenerateResponse(image=image_base64)
+
+    except Exception as e:
+        logger.error(f"An unexpected error occurred in /agent/generate: {e}")
+        # Re-raise as an HTTPException to send a 500 error to the client
+        raise HTTPException(status_code=500, detail=str(e))
 
     except json.JSONDecodeError as e:
         logger.exception(
@@ -69,7 +69,9 @@ async def agent_generate(request: GenerationRequest):
         )
     except Exception as e:
         logger.exception("An unexpected error occurred in /agent/generate: %s", e)
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {e}"
+        )
 
 
 @router.post("/agent/variations")
@@ -82,4 +84,6 @@ async def agent_variations(request: GenerationRequest):
         return response
     except Exception as e:
         logger.exception("An unexpected error occurred in /agent/variations: %s", e)
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {e}"
+        )

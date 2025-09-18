@@ -1,4 +1,4 @@
-from langchain_community.chat_models import ChatOllama
+from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel, Field
@@ -15,10 +15,7 @@ class PromptVariations(BaseModel):
 
 # --- Initialize the LLM ---
 llm = ChatOllama(
-    model=settings.OLLAMA_MODEL,
-    temperature=0.9,
-    format="json",
-    base_url=settings.OLLAMA_URL,
+    model=settings.OLLAMA_MODEL, temperature=0.9, base_url=settings.OLLAMA_URL
 )
 
 # --- Create the Output Parser ---
