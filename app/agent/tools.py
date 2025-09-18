@@ -6,16 +6,13 @@ from pathlib import Path
 import time
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.core.settings import settings
 
 
 # --- Pydantic Model for Tool Input ---
-# This model defines the "contract" for the image generation tool.
-# By using a Pydantic model, we allow the LLM to provide a richer set of
-# parameters, but we validate them strictly. The LLM can be "creative,"
-# and we can handle it gracefully.
+# This model still defines the "contract" and provides validation.
 class ImageGeneratorInput(BaseModel):
     prompt: str = Field(description="A detailed, descriptive prompt for the image.")
     negative_prompt: Optional[str] = Field(
@@ -37,20 +34,38 @@ class ImageGeneratorInput(BaseModel):
 
 
 # --- Tool Definition ---
-# We now pass the Pydantic model directly to the @tool decorator.
-# LangChain will automatically handle the conversion from the LLM's JSON output
-# into a populated instance of the ImageGeneratorInput class.
-@tool(args_schema=ImageGeneratorInput)
-def generate_image(tool_input: ImageGeneratorInput) -> str:
+@tool
+def generate_image(
+    prompt: str,
+    negative_prompt: Optional[str] = None,
+    steps: Optional[int] = None,
+    cfg_scale: Optional[float] = None,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    sampler_name: Optional[str] = None,
+) -> str:
     """
     Generates an image from a text prompt and other parameters using the AUTOMATIC1111 API.
     Returns a JSON string containing the image data and final prompt.
     """
-    print("--- 🖼️ Calling Image Generation Tool with Pydantic Model ---")
-    print(f"Tool Input: {tool_input.model_dump_json(indent=2)}")
+    print("--- 🖼️ Calling Image Generation Tool ---")
+
+    try:
+
+        tool_input = ImageGeneratorInput(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            steps=steps,
+            cfg_scale=cfg_scale,
+            width=width,
+            height=height,
+            sampler_name=sampler_name,
+        )
+        print(f"Validated Tool Input: {tool_input.model_dump_json(indent=2)}")
+    except ValidationError as e:
+        return json.dumps({"error": f"Invalid input parameters: {e}"})
 
     # --- Set Image Quality Defaults based on FAST_MODE ---
-    # If the user (or LLM) provides specific values, they will override these.
     if settings.FAST_MODE:
         default_steps = 10
         default_sampler = "Euler"
@@ -63,13 +78,11 @@ def generate_image(tool_input: ImageGeneratorInput) -> str:
         default_height = 1024
 
     # --- API Payload ---
-    # We construct the payload by coalescing the validated tool input with our defaults.
-    # This is the core of the robust solution: we trust our Pydantic model, not the raw LLM output.
     payload = {
         "prompt": tool_input.prompt,
         "negative_prompt": tool_input.negative_prompt,
         "steps": tool_input.steps or default_steps,
-        "cfg_scale": tool_input.cfg_scale,
+        "cfg_scale": tool_input.cfg_scale or 7.0,
         "width": tool_input.width or default_width,
         "height": tool_input.height or default_height,
         "sampler_name": tool_input.sampler_name or default_sampler,
@@ -88,7 +101,6 @@ def generate_image(tool_input: ImageGeneratorInput) -> str:
         return json.dumps(error_result)
 
     if "images" in r and r["images"]:
-        # --- Decode and Save the Image ---
         image_data = r["images"][0]
         image_bytes = base64.b64decode(image_data)
 
@@ -102,8 +114,6 @@ def generate_image(tool_input: ImageGeneratorInput) -> str:
             f.write(image_bytes)
         print(f"Image saved to: {file_path}")
 
-        # --- Prepare the JSON Output ---
-        # The final prompt used is now part of the payload.
         result = {
             "image_base64": image_data,
             "final_prompt": payload["prompt"],
