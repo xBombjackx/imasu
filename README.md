@@ -92,6 +92,17 @@ The application is now running!
 -   **FastAPI Documentation**: To see the API documentation, navigate to **http://localhost:8000/docs**.
 -   **Application Logs**: View the logs for the API and UI services by running `docker compose logs -f api` and `docker compose logs -f ui`.
 
+## Project Structure
+
+-   `app/`: Contains the FastAPI backend, including the LangChain agent, tools, and API routes.
+-   `ui/`: Contains the Streamlit frontend application.
+-   `tests/`: Contains the tests for the API and tools.
+-   `output/`: The default directory where generated images are saved.
+-   `CODE_REVIEW.md`: A detailed code review of the project.
+-   `Dockerfile` & `Dockerfile.ui`: Define the Docker images for the backend and frontend.
+-   `docker-compose.yml`: Orchestrates the deployment of all the services.
+-   `requirements-api.txt` & `requirements-ui.txt`: The Python dependencies for the backend and frontend.
+
 ## 🛑 Stopping the Application
 
 -   To stop all running services, press `Ctrl + C` in the terminal where `docker compose` is running.
