@@ -1,8 +1,9 @@
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import json
+import base64
 
 from app.agent.agent import agent_executor
 from app.agent.ideation import ideation_chain
@@ -17,10 +18,16 @@ class GenerationRequest(BaseModel):
     prompt: str
 
 
-class AgentResponse(BaseModel):
-    output: str
-    image_base64: Optional[str] = None
-    final_prompt: Optional[str] = None
+class AgentGenerateRequest(BaseModel):
+    prompt: str
+
+
+class AgentGenerateResponse(BaseModel):
+    image: str  # This will hold the base64 encoded image string
+
+
+class VariationsResponse(BaseModel):
+    variations: List[str]
 
 
 # --- API Endpoints ---
@@ -37,51 +44,46 @@ async def agent_generate(request: AgentGenerateRequest):
     """
     try:
         logger.info(f"Agent received prompt for generation: {request.prompt}")
-        agent_response = await agent_executor.ainvoke({"input": request.prompt})
+        # The agent executor is now expected to return a JSON string from the tool
+        agent_response_str = await agent_executor.ainvoke({"input": request.prompt})
 
-        # The new agent directly returns the tool's output!
-        image_path = agent_response.get("output", "")
-        if not image_path or not isinstance(image_path, str):
-            raise HTTPException(
-                status_code=500, detail="Agent did not return a valid image path."
+        # The tool returns a JSON string, which is the output of the agent
+        output_str = agent_response_str.get("output", "{}")
+        tool_output = json.loads(output_str)
+
+        image_base64 = tool_output.get("image_base64")
+
+        if not image_base64:
+            error_detail = tool_output.get(
+                "error", "Agent did not return a valid image."
             )
+            raise HTTPException(status_code=500, detail=error_detail)
 
-        logger.info(f"Agent generated image path: {image_path}")
-
-        with open(image_path, "rb") as f:
-            image_data = f.read()
-        image_base64 = base64.b64encode(image_data).decode("utf-8")
-
+        logger.info("Agent successfully generated image.")
         return AgentGenerateResponse(image=image_base64)
 
-    except Exception as e:
-        logger.error(f"An unexpected error occurred in /agent/generate: {e}")
-        # Re-raise as an HTTPException to send a 500 error to the client
-        raise HTTPException(status_code=500, detail=str(e))
-
     except json.JSONDecodeError as e:
-        logger.exception(
-            "JSONDecodeError: Agent returned malformed data. Details: %s", e
+        logger.error(
+            f"JSONDecodeError in /agent/generate: {e}. Raw output: {output_str}"
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Agent returned malformed data. Could not decode JSON from tool output: {agent_output_str}",
+            detail="Agent returned malformed data that could not be parsed as JSON.",
         )
     except Exception as e:
-        logger.exception("An unexpected error occurred in /agent/generate: %s", e)
-        raise HTTPException(
-            status_code=500, detail=f"An unexpected error occurred: {e}"
-        )
+        logger.error(f"An unexpected error occurred in /agent/generate: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/agent/variations")
+@router.post("/agent/variations", response_model=VariationsResponse)
 async def agent_variations(request: GenerationRequest):
     """
     Receives a simple prompt and generates a list of creative variations using the ideation agent.
     """
     try:
-        response = await ideation_chain.ainvoke({"user_idea": request.prompt})
-        return response
+        # The ideation chain already returns a dictionary thanks to the JsonOutputParser
+        response_dict = await ideation_chain.ainvoke({"user_idea": request.prompt})
+        return VariationsResponse(variations=response_dict.get("variations", []))
     except Exception as e:
         logger.exception("An unexpected error occurred in /agent/variations: %s", e)
         raise HTTPException(

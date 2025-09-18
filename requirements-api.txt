@@ -5,7 +5,6 @@ pydantic==2.9.2
 pydantic-settings==2.4.0
 
 # --- LangChain Packages ---
-# Using the main package for the agent framework
-langchain==0.2.11
-# Using the new, dedicated package for Ollama integration
-langchain-ollama==0.3.8
+langchain
+langchain-ollama
+langchain-core

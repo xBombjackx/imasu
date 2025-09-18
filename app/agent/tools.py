@@ -31,7 +31,8 @@ class ImageGeneratorInput(BaseModel):
     width: Optional[int] = Field(default=None, description="Image width in pixels.")
     height: Optional[int] = Field(default=None, description="Image height in pixels.")
     sampler_name: Optional[str] = Field(
-        default=None, description="The sampling method (e.g., 'Euler', 'DPM++ 2M Karras')."
+        default=None,
+        description="The sampling method (e.g., 'Euler', 'DPM++ 2M Karras').",
     )
 
 
@@ -113,3 +114,8 @@ def generate_image(tool_input: ImageGeneratorInput) -> str:
         print("API response did not contain image data.")
         error_result = {"error": "The image generation server did not return an image."}
         return json.dumps(error_result)
+
+
+def get_tools():
+    """Returns a list of all available tools for the agent."""
+    return [generate_image]
